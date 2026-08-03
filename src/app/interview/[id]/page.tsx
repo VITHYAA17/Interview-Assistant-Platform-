@@ -205,28 +205,33 @@ export default function InterviewSession() {
         });
 
         // Start call with dynamic prompts or default assistant
-        vapi.start({
-          firstMessage: `Hello! Welcome to your mock interview. I will be conducting your ${interview?.level} session for the ${interview?.role} position today. To start off, please introduce yourself and share a brief overview of your background.`,
-          model: {
-            provider: 'openai',
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'system',
-                content: `You are conducting a job interview for a ${interview?.level} ${interview?.role} position focusing on ${interview?.techStack}. Ask exactly ${interview?.questionsCount || 5} questions, one by one. Keep your questions and responses professional and brief. Wait for the candidate to respond to each question before asking the next one.`
-              }
-            ]
-          },
-          voice: {
-            provider: 'playht',
-            voiceId: 'jennifer'
-          },
-          transcriber: {
-            provider: 'deepgram',
-            model: 'nova-2',
-            language: 'en-US'
-          }
-        });
+        const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+        if (assistantId && assistantId !== 'your_assistant_id') {
+          vapi.start(assistantId);
+        } else {
+          vapi.start({
+            firstMessage: `Hello! Welcome to your mock interview. I will be conducting your ${interview?.level} session for the ${interview?.role} position today. To start off, please introduce yourself and share a brief overview of your background.`,
+            model: {
+              provider: 'openai',
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are conducting a job interview for a ${interview?.level} ${interview?.role} position focusing on ${interview?.techStack}. Ask exactly ${interview?.questionsCount || 5} questions, one by one. Keep your questions and responses professional and brief. Wait for the candidate to respond to each question before asking the next one.`
+                }
+              ]
+            },
+            voice: {
+              provider: 'playht',
+              voiceId: 'jennifer'
+            },
+            transcriber: {
+              provider: 'deepgram',
+              model: 'nova-2',
+              language: 'en-US'
+            }
+          });
+        }
       } catch (e: any) {
         console.error('Failed to start Vapi:', e);
         setErrorMessage(e.message || 'Failed to initialize Vapi Client.');
