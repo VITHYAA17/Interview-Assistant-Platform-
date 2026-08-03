@@ -198,8 +198,9 @@ export default function InterviewSession() {
         });
 
         vapi.on('error', (err: any) => {
-          console.error(err);
-          setErrorMessage(err.message || 'Error occurred connecting to Vapi.');
+          console.error('Vapi connection error details:', err);
+          const detail = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+          setErrorMessage(`Vapi Error: ${detail}`);
           setAgentStatus('idle');
         });
 
@@ -214,9 +215,19 @@ export default function InterviewSession() {
                 content: `You are conducting a job interview for a ${interview?.level} ${interview?.role} position focusing on ${interview?.techStack}. Ask exactly ${interview?.questionsCount || 5} questions, one by one. Keep your questions and responses professional and brief.`
               }
             ]
+          },
+          voice: {
+            provider: 'playht',
+            voiceId: 'jennifer'
+          },
+          transcriber: {
+            provider: 'deepgram',
+            model: 'nova-2',
+            language: 'en-US'
           }
         });
       } catch (e: any) {
+        console.error('Failed to start Vapi:', e);
         setErrorMessage(e.message || 'Failed to initialize Vapi Client.');
         setAgentStatus('idle');
       }
