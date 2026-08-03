@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PrepWise.AI - Real-Time AI Voice Agent Interview Platform
 
-## Getting Started
+PrepWise.AI is a next-generation full-stack mock interview application designed to help job seekers practice technical and behavioral interviews with real-time AI voice recruiters.
 
-First, run the development server:
+🚀 **Live Deployed Application**: [https://interview-assistant-platform.vercel.app/](https://interview-assistant-platform.vercel.app/)
 
+---
+
+## 🌟 Key Features
+
+* **Real-Time Voice Recruiting**: Integrates the **Vapi.ai Client SDK** to establish low-latency, WebRTC-based conversational voice streams. The AI recruiter dynamically responds to candidate inputs, verbal pauses, and answers.
+* **AI Question Generation**: Harnesses **Google Gemini (gemini-1.5-flash)** via a secure serverless API handler to compile dynamic interview questionnaires customized for specific job roles, seniority tiers, and tech stacks.
+* **Spoken & Speech Fallbacks**: Incorporates a browser-native fallback engine powered by the **Web Speech API** (`SpeechSynthesis` and `webkitSpeechRecognition`). If API keys are unconfigured, candidates can still speak, listen, and practice completely offline.
+* **Granular Scorecards & Analytics**: Evaluates transcripts post-interview using Gemini to compile detailed readiness metrics (Technical depth, Speech delivery, Key strengths, Areas to focus on, and Study recommendations).
+* **Local Database & Authentication**: Persistence layer built using HTML5 `LocalStorage` to save completed scorecard history, inspect transcript logs, and toggle between mock candidate profiles out of the box.
+
+---
+
+## 🛠️ Technology Stack
+
+* **Full-Stack Framework**: Next.js 15 (App Router, TypeScript)
+* **Styling**: Tailwind CSS v4 (Glassmorphic dark design system)
+* **Real-time Speech Channels**: Vapi.ai (WebRTC Audio Stream)
+* **Generative Intelligence**: Google Gemini API SDK (`@google/generative-ai`)
+* **Local Database**: HTML5 Browser LocalStorage API
+
+---
+
+## 🚀 Getting Started
+
+### 1. Installation
+Clone the repository and install the project dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure Environment Variables
+Create a `.env.local` file in the root of the project to add your API credentials:
+```env
+# 1. Google Gemini API Key
+# Get a free key from: https://aistudio.google.com/
+GEMINI_API_KEY="your-gemini-api-key"
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# 2. Vapi.ai Public Key
+# Get a key from: https://dashboard.vapi.ai/
+NEXT_PUBLIC_VAPI_PUBLIC_KEY="your-vapi-public-key"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# 3. Vapi Assistant ID (Required for Free Tier Calls)
+# Create an assistant in Vapi dashboard and copy its ID
+NEXT_PUBLIC_VAPI_ASSISTANT_ID="your-vapi-assistant-id"
+```
+*(If keys are left blank, the application automatically runs in browser-native Speech Simulation mode).*
 
-## Learn More
+### 3. Run the Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser to start practicing.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Build for Production
+To generate an optimized production build:
+```bash
+npm run build
+```
