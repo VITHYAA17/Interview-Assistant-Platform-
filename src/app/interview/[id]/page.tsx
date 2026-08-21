@@ -26,7 +26,6 @@ export default function InterviewSession() {
   const [simQuestionIndex, setSimQuestionIndex] = useState(0);
   const [recognitionActive, setRecognitionActive] = useState(false);
   const [speechText, setSpeechText] = useState('');
-  const [silenceStage, setSilenceStage] = useState<number>(0);
   
   // Feedback states
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
@@ -38,6 +37,7 @@ export default function InterviewSession() {
   const synthesisRef = useRef<any>(null);
   const interviewEndedRef = useRef(false);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceStageRef = useRef<number>(0);
 
   const mockQuestions = [
     "Hello! Welcome to your technical interview. To start off, could you introduce yourself and tell me about the most complex project you worked on recently?",
@@ -114,7 +114,7 @@ export default function InterviewSession() {
         if (text) {
           setSpeechText(text);
           lastActivityRef.current = Date.now();
-          setSilenceStage(0);
+          silenceStageRef.current = 0;
         }
       };
 
@@ -199,7 +199,7 @@ export default function InterviewSession() {
 
             if (role === 'user' && text.trim().length > 0) {
               lastActivityRef.current = Date.now();
-              setSilenceStage(0);
+              silenceStageRef.current = 0;
             }
 
             setTranscript((prev) => {
@@ -392,7 +392,7 @@ export default function InterviewSession() {
 
     // Reset activity timestamp on entering listening status
     lastActivityRef.current = Date.now();
-    setSilenceStage(0);
+    silenceStageRef.current = 0;
 
     const interval = setInterval(() => {
       if (interviewEndedRef.current) {
@@ -406,7 +406,7 @@ export default function InterviewSession() {
         // Reset activity to start the next window
         lastActivityRef.current = Date.now();
 
-        if (silenceStage === 0) {
+        if (silenceStageRef.current === 0) {
           // Warning stage
           const warningText = "I noticed you have been quiet. May I proceed to the next question?";
           
@@ -423,8 +423,8 @@ export default function InterviewSession() {
               startSpeechRecognition();
             });
           }
-          setSilenceStage(1);
-        } else if (silenceStage === 1) {
+          silenceStageRef.current = 1;
+        } else if (silenceStageRef.current === 1) {
           // Conclude interview
           const exitText = "No response detected. Concluding mock interview session.";
           
@@ -443,7 +443,7 @@ export default function InterviewSession() {
           } else {
             speakText(exitText, () => {});
           }
-          setSilenceStage(2);
+          silenceStageRef.current = 2;
         }
       }
     }, 1000);
@@ -453,7 +453,7 @@ export default function InterviewSession() {
     return () => {
       clearInterval(interval);
     };
-  }, [agentStatus, silenceStage, isSimulated]);
+  }, [agentStatus, isSimulated]);
 
   // Group consecutive messages by the same role to prevent splitting into multiple speech bubbles
   const groupedTranscript = useMemo(() => {
@@ -775,7 +775,7 @@ export default function InterviewSession() {
                       onChange={(e) => {
                         setSpeechText(e.target.value);
                         lastActivityRef.current = Date.now();
-                        setSilenceStage(0);
+                        silenceStageRef.current = 0;
                       }}
                       className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-pink-500 focus:outline-none text-xs transition-colors"
                       onKeyDown={(e) => {
@@ -797,7 +797,7 @@ export default function InterviewSession() {
                       onClick={() => {
                         setSpeechText("I believe React Hooks simplify component lifecycle states by abstracting code structures into simple functional boundaries. Using hook dependency arrays allows precise controller binding.");
                         lastActivityRef.current = Date.now();
-                        setSilenceStage(0);
+                        silenceStageRef.current = 0;
                       }}
                       className="text-pink-400 hover:text-pink-300 underline cursor-pointer"
                     >
