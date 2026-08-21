@@ -35,6 +35,7 @@ export default function InterviewSession() {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<any>(null);
+  const interviewEndedRef = useRef(false);
 
   const mockQuestions = [
     "Hello! Welcome to your technical interview. To start off, could you introduce yourself and tell me about the most complex project you worked on recently?",
@@ -170,6 +171,7 @@ export default function InterviewSession() {
 
   // Launch Session
   const handleStartSession = async () => {
+    interviewEndedRef.current = false;
     const vapiKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
 
     if (vapiKey && vapiKey !== 'your_vapi_key') {
@@ -295,9 +297,14 @@ export default function InterviewSession() {
     }
   };
 
-  const handleEndInterview = (finalTranscript?: { role: 'user' | 'assistant'; text: string }[]) => {
+  const handleEndInterview = async (finalTranscript?: { role: 'user' | 'assistant'; text: string; isFinal?: boolean }[]) => {
+    if (interviewEndedRef.current) return;
+    interviewEndedRef.current = true;
+
     if (vapiRef.current) {
-      vapiRef.current.stop();
+      try {
+        vapiRef.current.stop();
+      } catch (e) {}
     }
     stopSpeechRecognition();
     if (window.speechSynthesis) {
@@ -307,26 +314,26 @@ export default function InterviewSession() {
     setAgentStatus('completed');
     setIsGeneratingFeedback(true);
 
-    // Simulate calling Gemini to compile feedback reports
-    setTimeout(() => {
-      const activeTranscript = finalTranscript || transcript;
-      const calculatedScore = Math.floor(Math.random() * 20) + 75; // 75-95
+    const activeTranscript = finalTranscript || transcript;
 
-      const feedback = {
-        overallScore: calculatedScore,
-        technicalScore: Math.floor(Math.random() * 15) + 80,
-        communicationScore: Math.floor(Math.random() * 15) + 80,
-        strengths: [
-          'Excellent speed and structure in answering coding questions',
-          'Solid understanding of core theoretical architecture paradigms',
-          'Consistent pacing and articulate delivery'
-        ],
-        weaknesses: [
-          'Could provide more concrete architectural examples from recent projects',
-          'Slightly hesitated on memory management optimizations queries'
-        ],
-        recommendations: `Focus on explaining performance bottlenecks and rendering optimizations. Review garbage collection, data fetching structures, and standard system design models.`
-      };
+    try {
+      const response = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: interview?.role,
+          level: interview?.level,
+          techStack: interview?.techStack,
+          questionsCount: interview?.questionsCount,
+          transcript: activeTranscript
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get score from evaluation API');
+      }
+
+      const feedback = await response.json();
 
       if (interview) {
         const updatedInterview: Interview = {
@@ -338,8 +345,29 @@ export default function InterviewSession() {
         saveInterview(updatedInterview);
         setInterview(updatedInterview);
       }
+    } catch (err: any) {
+      console.error('Error compiling feedback:', err);
+      if (interview) {
+        const fallbackFeedback = {
+          overallScore: 20,
+          technicalScore: 15,
+          communicationScore: 25,
+          strengths: ["Baseline response logged."],
+          weaknesses: ["Failed to generate deep AI evaluation: " + (err.message || String(err))],
+          recommendations: "Please try starting the session again or verify your API key configurations."
+        };
+        const updatedInterview: Interview = {
+          ...interview,
+          status: 'completed',
+          transcript: activeTranscript,
+          feedback: fallbackFeedback
+        };
+        saveInterview(updatedInterview);
+        setInterview(updatedInterview);
+      }
+    } finally {
       setIsGeneratingFeedback(false);
-    }, 2500);
+    }
   };
 
   return (
