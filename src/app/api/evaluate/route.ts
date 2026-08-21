@@ -1,21 +1,67 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+function runRuleBasedEvaluation(actualAnswersGiven: number, completionRate: number, avgAnswerLength: number) {
+  let overallScore = 80;
+  let technicalScore = 80;
+  let communicationScore = 80;
+  let strengths = ["Demonstrated baseline profile match."];
+  let weaknesses: string[] = [];
+  let recommendations = "Please verify your GEMINI_API_KEY configuration in Vercel/.env.local (must start with 'AIzaSy') to enable deep AI evaluations.";
+
+  if (actualAnswersGiven === 0) {
+    overallScore = 15;
+    technicalScore = 10;
+    communicationScore = 15;
+    weaknesses.push("Interview aborted early with zero candidate responses.");
+    recommendations = "Ensure you speak clearly into the microphone and answer the recruiter's questions before ending.";
+  } else if (completionRate < 0.5) {
+    overallScore = 35;
+    technicalScore = 30;
+    communicationScore = 40;
+    weaknesses.push("Interview terminated prematurely (completed less than half of the questions).");
+    recommendations = "Try to sit through the entire interview session to cover all technical categories.";
+  } else if (avgAnswerLength < 15) {
+    overallScore = 45;
+    technicalScore = 40;
+    communicationScore = 50;
+    weaknesses.push("Candidate responses are extremely brief, short, or empty.");
+    recommendations = "Explain your technical answers in more detail. Elaborate on structural solutions and patterns.";
+  } else {
+    overallScore = Math.floor(Math.random() * 15) + 75; // 75-90
+    technicalScore = Math.floor(Math.random() * 15) + 75;
+    communicationScore = Math.floor(Math.random() * 15) + 80;
+    strengths = [
+      "Covers main parts of technical questions.",
+      "Clear dialogue communication."
+    ];
+    weaknesses = ["Could expand on low-level design optimizations."];
+    recommendations = "Review coding paradigms and practice detailing system constraints.";
+  }
+
+  return {
+    overallScore,
+    technicalScore,
+    communicationScore,
+    strengths,
+    weaknesses,
+    recommendations
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const { role, level, techStack, questionsCount, transcript } = await request.json();
 
-    // 1. Check completion level to penalize if stopped early or responses are empty
-    const assistantMessages = transcript.filter((m: any) => m.role === 'assistant');
-    const userMessages = transcript.filter((m: any) => m.role === 'user');
-    
-    const actualQuestionsAsked = assistantMessages.length;
-    const actualAnswersGiven = userMessages.length;
+    const transcriptArray = Array.isArray(transcript) ? transcript : [];
 
-    // Rule-based heuristic for early exit / empty answers
+    // Calculate completion metrics
+    const assistantMessages = transcriptArray.filter((m: any) => m.role === 'assistant');
+    const userMessages = transcriptArray.filter((m: any) => m.role === 'user');
+    
+    const actualAnswersGiven = userMessages.length;
     const completionRate = questionsCount > 0 ? (actualAnswersGiven / questionsCount) : 0;
     
-    // Check if the user's answers are extremely short (less than 10 characters average)
     let totalLength = 0;
     userMessages.forEach((m: any) => {
       totalLength += (m.text || '').trim().length;
@@ -24,60 +70,17 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === 'your_gemini_key') {
-      console.warn('Gemini API key is not configured. Using rule-based evaluator fallback.');
-      
-      let overallScore = 80;
-      let technicalScore = 80;
-      let communicationScore = 80;
-      let strengths = ["Demonstrated baseline profile match."];
-      let weaknesses = [];
-      let recommendations = "Please configure GEMINI_API_KEY in .env.local to get deep AI evaluations.";
-
-      if (actualAnswersGiven === 0) {
-        overallScore = 15;
-        technicalScore = 10;
-        communicationScore = 10;
-        weaknesses.push("Interview aborted early with zero candidate responses.");
-        recommendations = "Ensure you complete the conversational prompts and answer the recruiter's questions.";
-      } else if (completionRate < 0.5) {
-        overallScore = 35;
-        technicalScore = 30;
-        communicationScore = 40;
-        weaknesses.push("Interview terminated prematurely (completed less than half of configured questions).");
-        recommendations = "Try to sit through the entire interview session to cover all technical categories.";
-      } else if (avgAnswerLength < 15) {
-        overallScore = 45;
-        technicalScore = 40;
-        communicationScore = 50;
-        weaknesses.push("Candidate responses are extremely brief or empty.");
-        recommendations = "Explain your technical solutions with descriptive architecture patterns and examples.";
-      } else {
-        overallScore = Math.floor(Math.random() * 15) + 75; // 75-90
-        technicalScore = Math.floor(Math.random() * 15) + 75;
-        communicationScore = Math.floor(Math.random() * 15) + 80;
-        strengths = [
-          "Covers main parts of technical questions.",
-          "Clear dialogue communication."
-        ];
-        weaknesses = ["Could expand on low-level design optimizations."];
-        recommendations = "Review coding paradigms and practice detailing system constraints.";
-      }
-
-      return NextResponse.json({
-        overallScore,
-        technicalScore,
-        communicationScore,
-        strengths,
-        weaknesses,
-        recommendations
-      });
+      console.warn('Gemini API key is missing. Using rule-based fallback.');
+      const data = runRuleBasedEvaluation(actualAnswersGiven, completionRate, avgAnswerLength);
+      return NextResponse.json(data);
     }
 
-    // Call Gemini for high-fidelity evaluation
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Call Gemini for high-fidelity evaluation inside a safe wrapper
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const prompt = `You are a senior technical interviewer. Evaluate the candidate's performance based on the following mock interview parameters and transcript.
+      const prompt = `You are a senior technical interviewer. Evaluate the candidate's performance based on the following mock interview parameters and transcript.
 
 Configuration:
 - Role: ${role}
@@ -86,7 +89,7 @@ Configuration:
 - Target Questions Count: ${questionsCount}
 
 Transcript:
-${JSON.stringify(transcript, null, 2)}
+${JSON.stringify(transcriptArray, null, 2)}
 
 CRITICAL GRADING RULES (FOLLOW STRICTLY):
 1. Completion check:
@@ -109,23 +112,33 @@ Return ONLY a valid JSON object matching the following structure:
   "weaknesses": string[],
   "recommendations": string
 }
-Do not include any markdown formatting or code blocks (e.g. no \`\`\`json). Just return the raw JSON string.`;
+Do not include any markdown formatting or code blocks. Just return the raw JSON string.`;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text().trim();
-    
-    const cleanJsonText = responseText
-      .replace(/^```json/i, '')
-      .replace(/```$/, '')
-      .trim();
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text().trim();
+      
+      const cleanJsonText = responseText
+        .replace(/^```json/i, '')
+        .replace(/```$/, '')
+        .trim();
 
-    const data = JSON.parse(cleanJsonText);
-    return NextResponse.json(data);
+      const data = JSON.parse(cleanJsonText);
+      return NextResponse.json(data);
+    } catch (geminiError: any) {
+      console.error('Gemini API call failed, recovering with rule-based fallback:', geminiError);
+      const data = runRuleBasedEvaluation(actualAnswersGiven, completionRate, avgAnswerLength);
+      return NextResponse.json(data);
+    }
   } catch (error: any) {
     console.error('Error in evaluation backend:', error);
-    return NextResponse.json(
-      { error: 'Failed to evaluate interview', details: error.message },
-      { status: 500 }
-    );
+    // Absolute fallback so backend never returns a 500 error code
+    return NextResponse.json({
+      overallScore: 20,
+      technicalScore: 15,
+      communicationScore: 25,
+      strengths: ["Session registered."],
+      weaknesses: ["Failed to process evaluation payload: " + error.message],
+      recommendations: "Please try again."
+    });
   }
 }
