@@ -165,6 +165,7 @@ export default function InterviewSession() {
         callback();
       };
 
+      synthesisRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     } else {
       // Fallback if Speech Synthesis is missing
@@ -215,6 +216,14 @@ export default function InterviewSession() {
               return [...list, { role, text, isFinal }];
             });
           }
+        });
+
+        vapi.on('speech-start', () => {
+          setAgentStatus('speaking');
+        });
+
+        vapi.on('speech-end', () => {
+          setAgentStatus('listening');
         });
 
         vapi.on('call-end', () => {
@@ -499,10 +508,23 @@ export default function InterviewSession() {
       </header>
 
       {/* Page Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-30">
-        {agentStatus === 'completed' && !isGeneratingFeedback ? (
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 py-8 relative z-30">
+        {isGeneratingFeedback ? (
+          /* Full Page Loading Screen */
+          <div className="flex flex-col items-center justify-center text-center py-28 gap-4 animate-pulse">
+            <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
+            <div>
+              <h3 className="text-xl font-bold flex items-center gap-2 justify-center text-white">
+                <Sparkles className="w-5 h-5 text-purple-400" /> Grading Session Responses...
+              </h3>
+              <p className="text-xs text-zinc-400 mt-2 max-w-[320px] mx-auto leading-relaxed">
+                Google Gemini is analyzing the dialogue transcription to evaluate speech metrics and technical depth scorecard.
+              </p>
+            </div>
+          </div>
+        ) : agentStatus === 'completed' ? (
           /* Feedback Results View */
-          <div className="lg:col-span-12 flex flex-col gap-6 animate-scale-in">
+          <div className="flex flex-col gap-6 animate-scale-in">
             <div className="glass-panel rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-emerald-500/10">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/25">
@@ -531,61 +553,61 @@ export default function InterviewSession() {
                 
                 <div className="flex flex-col gap-4">
                   <div>
-                    <div className="flex items-center justify-between text-sm font-semibold mb-1.5">
+                    <div className="flex justify-between text-xs font-semibold mb-1">
                       <span>Technical Competency</span>
                       <span className="text-purple-400">{interview?.feedback?.technicalScore}%</span>
                     </div>
-                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                      <div className="bg-purple-500 h-full rounded-full" style={{ width: `${interview?.feedback?.technicalScore}%` }} />
+                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${interview?.feedback?.technicalScore || 0}%` }} />
                     </div>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between text-sm font-semibold mb-1.5">
+                    <div className="flex justify-between text-xs font-semibold mb-1">
                       <span>Communication & Speech</span>
                       <span className="text-pink-400">{interview?.feedback?.communicationScore}%</span>
                     </div>
-                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                      <div className="bg-pink-500 h-full rounded-full" style={{ width: `${interview?.feedback?.communicationScore}%` }} />
+                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-pink-500 rounded-full" style={{ width: `${interview?.feedback?.communicationScore || 0}%` }} />
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-purple-950/20 border border-purple-500/10 rounded-xl p-4 mt-2">
-                  <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Next Steps Summary
-                  </h4>
-                  <p className="text-xs text-zinc-300 leading-relaxed">{interview?.feedback?.recommendations}</p>
+                <div className="mt-4 p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 flex flex-col gap-1.5">
+                  <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Next Steps Summary</span>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {interview?.feedback?.recommendations}
+                  </p>
                 </div>
               </div>
 
-              {/* Strengths & Weaknesses */}
-              <div className="glass-card rounded-2xl p-6 flex flex-col gap-4 lg:col-span-2">
+              {/* Strengths & Weaknesses report */}
+              <div className="lg:col-span-2 glass-card rounded-2xl p-6 flex flex-col gap-6">
                 <h3 className="text-lg font-bold flex items-center gap-2 border-b border-white/5 pb-3">
                   <MessageSquare className="w-5 h-5 text-pink-500" /> Evaluation Report
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-2">
-                  <div>
-                    <h4 className="text-sm font-bold text-emerald-400 mb-3 uppercase tracking-wider">Candidate Strengths</h4>
-                    <ul className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex flex-col gap-3">
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Candidate Strengths</span>
+                    <div className="flex flex-col gap-2">
                       {interview?.feedback?.strengths.map((str, idx) => (
-                        <li key={idx} className="text-xs text-zinc-300 bg-white/5 rounded-xl p-3 border border-white/5 leading-relaxed">
+                        <div key={idx} className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-xs text-zinc-300 leading-relaxed">
                           {str}
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
 
-                  <div>
-                    <h4 className="text-sm font-bold text-amber-400 mb-3 uppercase tracking-wider">Areas to Focus On</h4>
-                    <ul className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3">
+                    <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Areas to Focus On</span>
+                    <div className="flex flex-col gap-2">
                       {interview?.feedback?.weaknesses.map((weak, idx) => (
-                        <li key={idx} className="text-xs text-zinc-300 bg-white/5 rounded-xl p-3 border border-white/5 leading-relaxed">
+                        <div key={idx} className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-xs text-zinc-300 leading-relaxed">
                           {weak}
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -617,7 +639,7 @@ export default function InterviewSession() {
           </div>
         ) : (
           /* Live Voice Agent Interview View */
-          <>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
             {/* Left Column: Live Audio pulsing circle */}
             <div className="lg:col-span-5 flex flex-col items-center justify-center glass-panel rounded-3xl p-8 gap-8 relative overflow-hidden min-h-[500px]">
               {/* Pulsing indicator */}
@@ -806,23 +828,8 @@ export default function InterviewSession() {
                   </div>
                 </div>
               )}
-
-              {/* Feedback Loader Overlay */}
-              {isGeneratingFeedback && (
-                <div className="absolute inset-0 bg-[#030303]/90 backdrop-blur-sm flex flex-col items-center justify-center text-center p-8 gap-4 z-40">
-                  <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-                  <div>
-                    <h4 className="text-lg font-bold flex items-center gap-2 justify-center">
-                      <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" /> Grading Session Responses...
-                    </h4>
-                    <p className="text-xs text-zinc-400 mt-2 max-w-[280px] mx-auto leading-relaxed">
-                      Google Gemini is analyzing the dialogue transcription to evaluate speech metrics and technical depth scorecard.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
-          </>
+          </div>
         )}
       </main>
     </div>
