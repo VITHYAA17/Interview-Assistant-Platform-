@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { 
@@ -26,6 +26,7 @@ export default function InterviewSession() {
   const [simQuestionIndex, setSimQuestionIndex] = useState(0);
   const [recognitionActive, setRecognitionActive] = useState(false);
   const [speechText, setSpeechText] = useState('');
+  const [silenceStage, setSilenceStage] = useState<number>(0);
   
   // Feedback states
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
@@ -36,6 +37,7 @@ export default function InterviewSession() {
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<any>(null);
   const interviewEndedRef = useRef(false);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const mockQuestions = [
     "Hello! Welcome to your technical interview. To start off, could you introduce yourself and tell me about the most complex project you worked on recently?",
@@ -111,6 +113,8 @@ export default function InterviewSession() {
         const text = finalTranscript || interimTranscript;
         if (text) {
           setSpeechText(text);
+          lastActivityRef.current = Date.now();
+          setSilenceStage(0);
         }
       };
 
@@ -192,6 +196,11 @@ export default function InterviewSession() {
             const role = message.role === 'assistant' ? 'assistant' : 'user';
             const text = message.transcript || '';
             const isFinal = message.transcriptType === 'final';
+
+            if (role === 'user' && text.trim().length > 0) {
+              lastActivityRef.current = Date.now();
+              setSilenceStage(0);
+            }
 
             setTranscript((prev) => {
               const list = [...prev];
@@ -369,6 +378,103 @@ export default function InterviewSession() {
       setIsGeneratingFeedback(false);
     }
   };
+
+  const lastActivityRef = useRef<number>(Date.now());
+
+  // Effect to manage silence timer lifecycle via interval activity watchdog
+  useEffect(() => {
+    if (agentStatus !== 'listening' || interviewEndedRef.current) {
+      if (silenceTimeoutRef.current) {
+        clearInterval(silenceTimeoutRef.current as any);
+      }
+      return;
+    }
+
+    // Reset activity timestamp on entering listening status
+    lastActivityRef.current = Date.now();
+    setSilenceStage(0);
+
+    const interval = setInterval(() => {
+      if (interviewEndedRef.current) {
+        clearInterval(interval);
+        return;
+      }
+
+      const elapsedSeconds = (Date.now() - lastActivityRef.current) / 1000;
+
+      if (elapsedSeconds >= 30) {
+        // Reset activity to start the next window
+        lastActivityRef.current = Date.now();
+
+        if (silenceStage === 0) {
+          // Warning stage
+          const warningText = "I noticed you have been quiet. May I proceed to the next question?";
+          
+          setTranscript((prev) => [...prev, { role: 'assistant' as const, text: warningText, isFinal: true }]);
+          
+          if (!isSimulated && vapiRef.current) {
+            try {
+              vapiRef.current.say(warningText);
+            } catch (e) {
+              console.error("Vapi say failed:", e);
+            }
+          } else {
+            speakText(warningText, () => {
+              startSpeechRecognition();
+            });
+          }
+          setSilenceStage(1);
+        } else if (silenceStage === 1) {
+          // Conclude interview
+          const exitText = "No response detected. Concluding mock interview session.";
+          
+          setTranscript((prev) => {
+            const finalT = [...prev, { role: 'assistant' as const, text: exitText, isFinal: true }];
+            handleEndInterview(finalT);
+            return finalT;
+          });
+          
+          if (!isSimulated && vapiRef.current) {
+            try {
+              vapiRef.current.say(exitText, true);
+            } catch (e) {
+              console.error("Vapi end say failed:", e);
+            }
+          } else {
+            speakText(exitText, () => {});
+          }
+          setSilenceStage(2);
+        }
+      }
+    }, 1000);
+
+    silenceTimeoutRef.current = interval as any;
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [agentStatus, silenceStage, isSimulated]);
+
+  // Group consecutive messages by the same role to prevent splitting into multiple speech bubbles
+  const groupedTranscript = useMemo(() => {
+    const grouped: { role: 'user' | 'assistant'; text: string }[] = [];
+    transcript.forEach((msg) => {
+      if (grouped.length > 0 && grouped[grouped.length - 1].role === msg.role) {
+        const last = grouped[grouped.length - 1];
+        const toAppend = msg.text.trim();
+        if (toAppend) {
+          if (last.text.endsWith('.') || last.text.endsWith('?') || last.text.endsWith('!')) {
+            last.text += " " + toAppend;
+          } else {
+            last.text += " " + toAppend;
+          }
+        }
+      } else {
+        grouped.push({ role: msg.role, text: msg.text });
+      }
+    });
+    return grouped;
+  }, [transcript]);
 
   return (
     <div className="min-h-screen bg-[#030303] text-[#f4f4f5] font-sans flex flex-col relative">
@@ -618,13 +724,13 @@ export default function InterviewSession() {
 
               {/* Chat screen */}
               <div className="flex-1 overflow-y-auto flex flex-col gap-4 mb-4 pr-1 scrollbar-thin">
-                {transcript.length === 0 ? (
+                {groupedTranscript.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-zinc-600 gap-2">
                     <Volume2 className="w-8 h-8" />
                     <p className="text-xs">Dialogue log is empty. Launch connection to begin transcript output.</p>
                   </div>
                 ) : (
-                  transcript.map((msg, idx) => (
+                  groupedTranscript.map((msg, idx) => (
                     <div 
                       key={idx} 
                       className={`flex flex-col max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed ${
@@ -666,7 +772,11 @@ export default function InterviewSession() {
                       type="text"
                       placeholder="Type your answer, or speak out loud..."
                       value={speechText}
-                      onChange={(e) => setSpeechText(e.target.value)}
+                      onChange={(e) => {
+                        setSpeechText(e.target.value);
+                        lastActivityRef.current = Date.now();
+                        setSilenceStage(0);
+                      }}
                       className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-pink-500 focus:outline-none text-xs transition-colors"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleNextSimQuestion();
@@ -684,7 +794,11 @@ export default function InterviewSession() {
                   <div className="flex items-center justify-between text-[10px] text-zinc-500 px-1 font-medium">
                     <span>Speak into your mic or type inside the input area.</span>
                     <button
-                      onClick={() => setSpeechText("I believe React Hooks simplify component lifecycle states by abstracting code structures into simple functional boundaries. Using hook dependency arrays allows precise controller binding.")}
+                      onClick={() => {
+                        setSpeechText("I believe React Hooks simplify component lifecycle states by abstracting code structures into simple functional boundaries. Using hook dependency arrays allows precise controller binding.");
+                        lastActivityRef.current = Date.now();
+                        setSilenceStage(0);
+                      }}
                       className="text-pink-400 hover:text-pink-300 underline cursor-pointer"
                     >
                       💡 Insert Sample Tech Answer
