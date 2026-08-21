@@ -17,7 +17,7 @@ export default function InterviewSession() {
 
   const [interview, setInterview] = useState<Interview | null>(null);
   const [agentStatus, setAgentStatus] = useState<'idle' | 'connecting' | 'listening' | 'speaking' | 'completed'>('idle');
-  const [transcript, setTranscript] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [transcript, setTranscript] = useState<{ role: 'user' | 'assistant'; text: string; isFinal?: boolean }[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -188,7 +188,21 @@ export default function InterviewSession() {
         vapi.on('message', (message: any) => {
           if (message.type === 'transcript') {
             const role = message.role === 'assistant' ? 'assistant' : 'user';
-            setTranscript((prev) => [...prev, { role, text: message.transcript }]);
+            const text = message.transcript || '';
+            const isFinal = message.transcriptType === 'final';
+
+            setTranscript((prev) => {
+              const list = [...prev];
+              if (list.length > 0) {
+                const lastIdx = list.length - 1;
+                const lastMsg = list[lastIdx];
+                if (lastMsg.role === role && !lastMsg.isFinal) {
+                  list[lastIdx] = { ...lastMsg, text, isFinal };
+                  return list;
+                }
+              }
+              return [...list, { role, text, isFinal }];
+            });
           }
         });
 
