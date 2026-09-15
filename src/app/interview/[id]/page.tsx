@@ -699,7 +699,6 @@ export default function InterviewSession() {
                   {agentStatus === 'connecting' && 'Connecting Voice Channels...'}
                   {agentStatus === 'speaking' && 'Agent is speaking...'}
                   {agentStatus === 'listening' && 'Listening to your response...'}
-                  {agentStatus === 'completed' && 'Finishing interview...'}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-2 max-w-[260px] mx-auto leading-relaxed">
                   {agentStatus === 'idle' && 'Click the start button below to connect with your AI interviewer and begin the mock session.'}
