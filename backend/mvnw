@@ -1,0 +1,12 @@
+#!/bin/sh
+# PrepWise Portable Maven Wrapper for Linux/macOS
+DIRNAME="$(cd "$(dirname "$0")" && pwd)"
+if [ ! -f "$DIRNAME/.maven/apache-maven-3.9.9/bin/mvn" ]; then
+    echo "[PrepWise] Portable Maven not found. Downloading Maven 3.9.9..."
+    mkdir -p "$DIRNAME/.maven"
+    curl -s -L -o "$DIRNAME/.maven/maven.zip" "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip"
+    unzip -q "$DIRNAME/.maven/maven.zip" -d "$DIRNAME/.maven"
+    rm -f "$DIRNAME/.maven/maven.zip"
+    chmod +x "$DIRNAME/.maven/apache-maven-3.9.9/bin/mvn"
+fi
+exec "$DIRNAME/.maven/apache-maven-3.9.9/bin/mvn" "$@"

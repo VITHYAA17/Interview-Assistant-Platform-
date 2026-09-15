@@ -18,11 +18,13 @@ PrepWise.AI is a next-generation full-stack mock interview application designed 
 
 ## 🛠️ Technology Stack
 
-* **Full-Stack Framework**: Next.js 15 (App Router, TypeScript)
+* **Backend Service**: Spring Boot 3.4 (Java 21/25, Spring Data JPA, REST APIs, H2 In-Memory DB)
+* **Frontend Client**: Next.js 16 (React 19, TypeScript, App Router)
 * **Styling**: Tailwind CSS v4 (Glassmorphic dark design system)
-* **Real-time Speech Channels**: Vapi.ai (WebRTC Audio Stream)
-* **Generative Intelligence**: Google Gemini API SDK (`@google/generative-ai`)
-* **Local Database**: HTML5 Browser LocalStorage API
+* **Real-time Speech Channels**: Vapi.ai (WebRTC Audio Stream, Voice Activity Detection)
+* **Generative Intelligence**: Google Gemini API (`gemini-1.5-flash`)
+* **Persistence**: Spring Data JPA + H2 In-Memory Database (with `/h2-console`) and LocalStorage fallback
+* **Architecture & Interview Guide**: See [SPRING_BOOT_ARCHITECTURE_GUIDE.md](SPRING_BOOT_ARCHITECTURE_GUIDE.md)
 
 ---
 

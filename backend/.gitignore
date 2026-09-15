@@ -1,0 +1,8 @@
+target/
+.maven/
+*.log
+.idea/
+*.iml
+.settings/
+.project
+.classpath

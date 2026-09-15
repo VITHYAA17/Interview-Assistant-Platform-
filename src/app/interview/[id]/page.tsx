@@ -335,17 +335,37 @@ export default function InterviewSession() {
     const activeTranscript = finalTranscript || transcript;
 
     try {
-      const response = await fetch('/api/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: interview?.role,
-          level: interview?.level,
-          techStack: interview?.techStack,
-          questionsCount: interview?.questionsCount,
-          transcript: activeTranscript
-        })
-      });
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      let response: Response;
+      try {
+        response = await fetch(`${backendUrl}/api/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: interview?.role,
+            level: interview?.level,
+            techStack: interview?.techStack,
+            questionsCount: interview?.questionsCount,
+            transcript: activeTranscript
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Spring Boot evaluation returned status ${response.status}`);
+        }
+      } catch (springBootErr) {
+        console.warn('Spring Boot backend unreachable or returned error, falling back to local route:', springBootErr);
+        response = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: interview?.role,
+            level: interview?.level,
+            techStack: interview?.techStack,
+            questionsCount: interview?.questionsCount,
+            transcript: activeTranscript
+          })
+        });
+      }
 
       if (!response.ok) {
         throw new Error('Failed to get score from evaluation API');
